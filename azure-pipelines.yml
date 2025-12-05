@@ -1,0 +1,66 @@
+# Azure Pipelines configuration for Event Planning Application
+
+trigger:
+  branches:
+    include:
+    - main
+    - develop
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  GRADLE_USER_HOME: $(Pipeline.Workspace)/.gradle
+
+steps:
+# Checkout code
+- checkout: self
+
+# Set up Java
+- task: JavaToolInstaller@0
+  inputs:
+    versionSpec: '17'
+    jdkArchitectureOption: 'x64'
+    jdkSourceOption: 'PreInstalled'
+
+# Cache Gradle packages
+- task: Cache@2
+  inputs:
+    key: 'gradle | "$(Agent.OS)" | **/build.gradle.kts'
+    restoreKeys: |
+      gradle | "$(Agent.OS)"
+      gradle
+    path: $(GRADLE_USER_HOME)
+  displayName: Cache Gradle packages
+
+# Make gradlew executable
+- script: chmod +x gradlew
+  displayName: 'Make gradlew executable'
+
+# Build the project
+- task: Gradle@2
+  inputs:
+    gradleWrapperFile: 'gradlew'
+    tasks: 'build'
+    javaHomeOption: 'JDKVersion'
+    jdkVersionOption: '1.17'
+    publishJUnitResults: true
+    testResultsFiles: '**/TEST-*.xml'
+  displayName: 'Build and Test'
+
+# Publish test results
+- task: PublishTestResults@2
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: '**/TEST-*.xml'
+    failTaskOnFailedTests: true
+  displayName: 'Publish test results'
+  condition: succeededOrFailed()
+
+# Publish build artifacts
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: 'kotlin-app/build/distributions'
+    ArtifactName: 'application'
+    publishLocation: 'Container'
+  displayName: 'Publish build artifacts'
